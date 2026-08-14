@@ -1,0 +1,51 @@
+name: Validate RFDs
+
+# Every PR is gated on this. An RFD that cannot parse, is misnumbered, or is
+# attributed to an account that does not exist must not reach main — the site
+# builds directly from main and fails closed if anything is malformed.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Schema, numbering and uniqueness
+        run: bun run validate
+
+      # Format is checked offline above; existence needs the network, so it is
+      # a separate step. This is what makes an invented contributor impossible
+      # rather than merely discouraged.
+      - name: Authors resolve to real GitHub accounts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail=0
+          handles=$(grep -rhA20 '^---' */README.md \
+            | awk '/^authors:/{f=1} f&&/^  - /{print $2} /^[a-z]/&&!/^authors:/{f=0}' \
+            | sort -u)
+          if [ -z "$handles" ]; then echo "no authors found"; exit 1; fi
+          for h in $handles; do
+            if gh api "users/$h" --silent 2>/dev/null; then
+              echo "  ok    $h"
+            else
+              echo "  FAIL  $h — no such GitHub account"
+              fail=1
+            fi
+          done
+          exit $fail

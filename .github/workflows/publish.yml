@@ -1,0 +1,26 @@
+name: Publish to deka.gg
+
+# The website builds RFDs from this repository's `main`. Without this, merging
+# an RFD changes nothing visible until someone happens to redeploy the site —
+# which is how a process quietly stops being used.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger a deka.gg rebuild
+        env:
+          # A fine-grained PAT with "Contents: read and write" on
+          # dekaruntime/website. The default GITHUB_TOKEN cannot dispatch
+          # across repositories.
+          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/dekaruntime/website/dispatches \
+            -f event_type=rfd-updated \
+            -F "client_payload[commit]=${{ github.sha }}"
