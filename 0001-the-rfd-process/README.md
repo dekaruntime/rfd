@@ -44,10 +44,20 @@ read 4, 17, 39. That is cosmetic and worth it. This RFD is itself the first
 gap — number 1 was consumed by a test pull request while the system was being
 built.
 
-### Labels carry the state
+### Labels carry the state, up to a point
 
-    prediscussion → ideation → discussion → published → committed
-                                          ↘ abandoned
+    ISSUE  prediscussion → ideation → discussion ──┐
+                                                   │  promotion (a pull request)
+    FILE                     published → committed ┘
+                                                   ↘ abandoned (either side)
+
+**`published` and `committed` are not labels you can apply to an issue.** They
+belong to files. Accepting an RFD means promoting it and opening a pull
+request; a label cannot commit the project to anything, because a label has no
+author, no diff and no reviewer.
+
+Labelling an unpromoted issue `committed` fails the site build, with a message
+telling you to promote it instead.
 
 An issue with no state label is treated as `prediscussion` — someone opened it,
 so it exists, and the absence of a label is not a reason to hide it.
@@ -73,9 +83,16 @@ convenience — and that is exactly what a pull request gives you.
 
 The single rule that keeps the two homes from disagreeing. A promoted RFD's
 state comes from its frontmatter and its body comes from the file; the issue is
-demoted to being the conversation. Without this rule a stale label and a
-frontmatter state eventually contradict each other and nobody can say which is
-true.
+demoted to being the conversation.
+
+The site honours that rule, but GitHub does not — it still shows the label and
+still lets anyone change it. So a workflow syncs each promoted RFD's label to
+its file whenever `main` changes, and comments on the issue when the state
+moves. The file is never edited to match a label; the correction only runs one
+way.
+
+Without this, an issue page can read `discussion` while deka.gg reads
+`committed`, and nothing anywhere surfaces the contradiction.
 
 ### The site shows all of them
 
@@ -101,6 +118,15 @@ but discussions cannot be required to pass a check, and they have no
 relationship to a file. Discussions stay available for conversation that is not
 a proposal.
 
+### Committing to something is a pull request
+
+Because `committed` is a file state, the act of accepting an RFD is merging a
+pull request that promotes it. That gives the decision what a label cannot: an
+author, a diff, a reviewer, a timestamp, and somewhere to write down why.
+
+`CODEOWNERS` already restricts who can merge, so the authority was always
+there — this names it.
+
 ## Consequences
 
 - Proposing an RFD costs a text box; accepting one costs a pull request.
@@ -108,7 +134,8 @@ a proposal.
 - Numbers are permanent and never reused, so links never rot. The sequence has
   gaps.
 - The published set is only as good as the promotion step: an RFD that is
-  decided but never promoted stays a comment thread.
+  decided but never promoted stays a comment thread. The build now catches the
+  most common version of that mistake — labelling instead of promoting.
 - deka.gg gains a hard dependency on this repository. The site build fails
   closed rather than publishing a page with RFDs missing.
 - Issue bodies are rendered on deka.gg, so they are sanitised before display.

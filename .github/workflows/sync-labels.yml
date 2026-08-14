@@ -1,0 +1,32 @@
+name: Sync issue labels to promoted files
+
+# A promoted RFD's state lives in its file, and the site ignores the label.
+# GitHub still shows it though, so without this the issue page can say
+# "discussion" while deka.gg says "committed" and nothing surfaces the
+# disagreement. The file always wins; this never edits a file.
+on:
+  push:
+    branches: [main]
+    paths: ['*/README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sync-rfd-labels
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run sync-labels
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
