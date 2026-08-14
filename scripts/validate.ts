@@ -28,6 +28,7 @@ const isoDate = z
   .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v), 'must be a YYYY-MM-DD date')
 const DIR_PATTERN = /^(\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*$/
 
+/** Every state the system knows about. */
 export const STATES = [
   'prediscussion',
   'ideation',
@@ -36,6 +37,17 @@ export const STATES = [
   'committed',
   'abandoned',
 ] as const
+
+/**
+ * States a PROMOTED FILE may declare.
+ *
+ * The earlier states belong to issues. Committing to something is not a label
+ * you apply — it is opening a pull request that promotes the RFD, which is
+ * what gives the decision an author, a diff, a reviewer and a timestamp.
+ * `abandoned` appears in both lists because an RFD can be dropped before or
+ * after it was accepted.
+ */
+export const FILE_STATES = ['published', 'committed', 'abandoned'] as const
 
 /** The only shape an RFD's frontmatter may take. Unknown keys are rejected so
  *  a typo ("state" vs "status") fails loudly instead of silently defaulting. */
@@ -101,6 +113,14 @@ for (const dir of rfdDirs()) {
     continue
   }
   const fm = result.data
+
+  if (!(FILE_STATES as readonly string[]).includes(fm.state)) {
+    fail(
+      dir,
+      `state "${fm.state}" belongs to the issue, not the file — a promoted RFD ` +
+        `may be ${FILE_STATES.join(', ')}. Change the label on issue #${fm.rfd} instead.`,
+    )
+  }
 
   // The number is the issue number this RFD was promoted from. It must agree
   // with the directory, because the directory is what a human reads and the
