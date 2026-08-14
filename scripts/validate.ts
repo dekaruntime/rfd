@@ -1,13 +1,16 @@
 #!/usr/bin/env bun
 /**
- * RFD validation gate.
+ * Validation gate for PROMOTED RFDs.
  *
- * Runs on every pull request. An RFD that fails any check here cannot merge,
- * which is what keeps the published set trustworthy: every RFD on main is
- * guaranteed to parse, to be uniquely numbered, and to be attributable to a
- * real person.
+ * Every issue in this repository is an RFD, and the issue number is the RFD
+ * number — so nothing here assigns numbers or resolves collisions. GitHub does
+ * that atomically. This checks only the files an accepted RFD is promoted to:
+ * that they parse, agree with their directory, and are attributable.
  *
- * Exit codes: 0 = all valid, 1 = at least one problem.
+ * A repository with no promoted files is valid. It means every RFD is still
+ * under discussion, which is a normal state for this repo to be in.
+ *
+ * Exit codes: 0 = valid, 1 = at least one problem.
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -99,8 +102,9 @@ for (const dir of rfdDirs()) {
   }
   const fm = result.data
 
-  // The number is the identity. It must agree with the directory, because the
-  // directory is what a human reads and the number is what every URL uses.
+  // The number is the issue number this RFD was promoted from. It must agree
+  // with the directory, because the directory is what a human reads and the
+  // number is what every URL and every link back to the discussion uses.
   const dirNumber = Number(dir.slice(0, 4))
   if (fm.rfd !== dirNumber) {
     fail(dir, `frontmatter rfd:${fm.rfd} does not match directory number ${dirNumber}`)
@@ -123,10 +127,6 @@ for (const dir of rfdDirs()) {
   }
 }
 
-if (rfdDirs().length === 0) {
-  problems.push('no RFDs found — expected at least one NNNN-slug directory')
-}
-
 if (PRINT_AUTHORS) {
   // Only the handles, one per line, so CI can loop over them.
   if (problems.length > 0) {
@@ -144,4 +144,8 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log(`✓ ${seen.size} RFD(s) valid: ${[...seen.keys()].sort((a, b) => a - b).join(', ')}`)
+if (seen.size === 0) {
+  console.log('✓ no promoted RFDs yet — every RFD is still an issue')
+} else {
+  console.log(`✓ ${seen.size} promoted RFD(s) valid: ${[...seen.keys()].sort((a, b) => a - b).join(', ')}`)
+}

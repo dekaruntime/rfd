@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "validate": "bun scripts/validate.ts",
-    "new": "bun scripts/new.ts"
+    "promote": "bun scripts/promote.ts"
   },
   "dependencies": {
     "gray-matter": "^4.0.3",
