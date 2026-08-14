@@ -52,7 +52,10 @@ export const FrontmatterSchema = z
 
 export type Frontmatter = z.infer<typeof FrontmatterSchema>
 
+const PRINT_AUTHORS = process.argv.includes('--print-authors')
+
 const problems: string[] = []
+const authors = new Set<string>()
 const fail = (dir: string, msg: string) => problems.push(`${dir}: ${msg}`)
 
 function rfdDirs(): string[] {
@@ -109,6 +112,8 @@ for (const dir of rfdDirs()) {
   if (clash) fail(dir, `RFD number ${fm.rfd} is already used by ${clash}`)
   else seen.set(fm.rfd, dir)
 
+  for (const author of fm.authors) authors.add(author)
+
   if (body.trim().length < 200) {
     fail(dir, 'body is under 200 characters — an RFD needs to state a problem')
   }
@@ -120,6 +125,16 @@ for (const dir of rfdDirs()) {
 
 if (rfdDirs().length === 0) {
   problems.push('no RFDs found — expected at least one NNNN-slug directory')
+}
+
+if (PRINT_AUTHORS) {
+  // Only the handles, one per line, so CI can loop over them.
+  if (problems.length > 0) {
+    console.error('cannot list authors: RFDs are invalid — run validate first')
+    process.exit(1)
+  }
+  console.log([...authors].sort().join('\n'))
+  process.exit(0)
 }
 
 if (problems.length > 0) {

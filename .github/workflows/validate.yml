@@ -30,22 +30,25 @@ jobs:
       # Format is checked offline above; existence needs the network, so it is
       # a separate step. This is what makes an invented contributor impossible
       # rather than merely discouraged.
+      #
+      # The handles come from the validator, which parses the YAML properly.
+      # An earlier version scraped frontmatter with awk and silently found
+      # nothing, turning this gate into a no-op that failed for the wrong reason.
       - name: Authors resolve to real GitHub accounts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          fail=0
-          handles=$(grep -rhA20 '^---' */README.md \
-            | awk '/^authors:/{f=1} f&&/^  - /{print $2} /^[a-z]/&&!/^authors:/{f=0}' \
-            | sort -u)
+          handles=$(bun run --silent validate --print-authors)
           if [ -z "$handles" ]; then echo "no authors found"; exit 1; fi
-          for h in $handles; do
+          fail=0
+          while IFS= read -r h; do
+            [ -z "$h" ] && continue
             if gh api "users/$h" --silent 2>/dev/null; then
               echo "  ok    $h"
             else
               echo "  FAIL  $h — no such GitHub account"
               fail=1
             fi
-          done
+          done <<< "$handles"
           exit $fail
