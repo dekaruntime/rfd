@@ -1,14 +1,29 @@
 name: Publish to deka.gg
 
-# The website builds RFDs from this repository's `main`. Without this, merging
-# an RFD changes nothing visible until someone happens to redeploy the site —
-# which is how a process quietly stops being used.
+# The website builds RFDs from this repository — bodies from `main`, and the
+# discussion from the issue threads. Without this, changes here are invisible
+# until the site's own schedule comes round, which is how a process quietly
+# stops being used.
+#
+# Comment activity matters as much as pushes: most RFDs never become a file,
+# so for them the argument IS the content, and a push-only trigger never fires.
 on:
   push:
     branches: [main]
+  issues:
+    types: [opened, edited, deleted, reopened, closed, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# A burst of comments on one thread should redeploy the site once, after the
+# last of them, not once per comment.
+concurrency:
+  group: publish-to-deka-gg
+  cancel-in-progress: true
 
 jobs:
   notify:
@@ -21,6 +36,15 @@ jobs:
           # across repositories.
           GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
         run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::WEBSITE_DISPATCH_TOKEN is not set, so deka.gg was not notified."
+            echo "The site still picks this up on its own 2-hourly schedule."
+            echo "To remove that delay, mint a fine-grained PAT with"
+            echo "Contents: read and write on dekaruntime/website and add it"
+            echo "as a secret named WEBSITE_DISPATCH_TOKEN."
+            exit 1
+          fi
           gh api repos/dekaruntime/website/dispatches \
             -f event_type=rfd-updated \
+            -F "client_payload[event]=${{ github.event_name }}" \
             -F "client_payload[commit]=${{ github.sha }}"

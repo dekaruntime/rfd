@@ -34,9 +34,17 @@ jobs:
       # The handles come from the validator, which parses the YAML properly.
       # An earlier version scraped frontmatter with awk and silently found
       # nothing, turning this gate into a no-op that failed for the wrong reason.
+      # Asks the public users endpoint directly instead of going through the
+      # gh CLI with ${{ github.token }}. That token is an installation token
+      # scoped to `contents: read`, which GitHub rejects on endpoints outside
+      # the grant -- so this step began failing with "samifouad — no such
+      # GitHub account" about an account that plainly exists.
+      #
+      # The deeper bug was that any failure read as "account does not exist".
+      # A check that cannot tell absent from could-not-ask will eventually
+      # accuse a real person, which is what happened. 404 now means missing;
+      # anything else means the check could not run, and says so.
       - name: Authors resolve to real GitHub accounts
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           handles=$(bun run --silent validate --print-authors)
@@ -44,11 +52,15 @@ jobs:
           fail=0
           while IFS= read -r h; do
             [ -z "$h" ] && continue
-            if gh api "users/$h" --silent 2>/dev/null; then
-              echo "  ok    $h"
-            else
-              echo "  FAIL  $h — no such GitHub account"
-              fail=1
-            fi
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'accept: application/vnd.github+json' \
+              -H 'user-agent: dekaruntime-rfd-validate' \
+              "https://api.github.com/users/$h" || echo 000)
+            case "$code" in
+              200) echo "  ok      $h" ;;
+              404) echo "  FAIL    $h — no such GitHub account"; fail=1 ;;
+              403|429) echo "  FAIL    $h — rate limited (HTTP $code), could not verify"; fail=1 ;;
+              *) echo "  FAIL    $h — could not reach the GitHub API (HTTP $code)"; fail=1 ;;
+            esac
           done <<< "$handles"
           exit $fail
