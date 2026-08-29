@@ -29,20 +29,20 @@ jobs:
   notify:
     runs-on: [self-hosted, macOS, ARM64]
     steps:
+      # deka.gg rebuilds on its own schedule (deploy.yml, cron 17 */2), so this
+      # is a latency optimisation rather than a correctness requirement. Same
+      # reasoning and the same secret as the headless sync trigger in
+      # dekaruntime/deka's release.yml -- CASCADE_DISPATCH_TOKEN is the org's
+      # cross-repo dispatch credential. An earlier version of this workflow
+      # invented WEBSITE_DISPATCH_TOKEN, which never existed.
       - name: Trigger a deka.gg rebuild
         env:
-          # A fine-grained PAT with "Contents: read and write" on
-          # dekaruntime/website. The default GITHUB_TOKEN cannot dispatch
-          # across repositories.
-          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.CASCADE_DISPATCH_TOKEN }}
         run: |
           if [ -z "${GH_TOKEN}" ]; then
-            echo "::error::WEBSITE_DISPATCH_TOKEN is not set, so deka.gg was not notified."
-            echo "The site still picks this up on its own 2-hourly schedule."
-            echo "To remove that delay, mint a fine-grained PAT with"
-            echo "Contents: read and write on dekaruntime/website and add it"
-            echo "as a secret named WEBSITE_DISPATCH_TOKEN."
-            exit 1
+            echo "CASCADE_DISPATCH_TOKEN not set; skipping cross-repo deka.gg trigger."
+            echo "The 2-hourly deploy schedule will pick this up within two hours."
+            exit 0
           fi
           gh api repos/dekaruntime/website/dispatches \
             -f event_type=rfd-updated \
