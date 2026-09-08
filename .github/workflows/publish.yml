@@ -27,6 +27,14 @@ concurrency:
 
 jobs:
   notify:
+    # Applying `committed` starts the promotion workflow, which opens a PR.
+    # Publishing before that PR merges would expose a state that has no
+    # canonical file yet. The push that merges the promotion is the publish
+    # event instead.
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name != 'committed'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       # deka.gg rebuilds on its own schedule (deploy.yml, cron 17 */2), so this
