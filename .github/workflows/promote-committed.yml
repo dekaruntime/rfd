@@ -1,0 +1,73 @@
+name: Promote committed RFD
+
+# A committed RFD must have a reviewed canonical file. The label is the simple
+# maintainer-facing action; this workflow turns it into the required PR.
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: promote-rfd-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.event.label.name == 'committed'
+    runs-on: ubuntu-latest
+    env:
+      RFD_NUMBER: ${{ github.event.issue.number }}
+      BRANCH: automation/promote-rfd-${{ github.event.issue.number }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Skip an RFD that already has a canonical file
+        id: promoted
+        run: |
+          if rg --glob '????-*/README.md' "^rfd: ${RFD_NUMBER}$" .; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            echo "RFD ${RFD_NUMBER} is already promoted."
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when a promotion pull request is already open
+        id: existing_pr
+        if: steps.promoted.outputs.exists == 'false'
+        run: |
+          number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate the canonical RFD
+        if: steps.promoted.outputs.exists == 'false' && steps.existing_pr.outputs.number == ''
+        run: bun run promote "$RFD_NUMBER" --state committed
+
+      - name: Commit and push the promotion branch
+        if: steps.promoted.outputs.exists == 'false' && steps.existing_pr.outputs.number == ''
+        run: |
+          git switch -c "$BRANCH"
+          git config user.name 'deka-rfd-promote[bot]'
+          git config user.email 'deka-rfd-promote[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m "rfd: promote RFD ${RFD_NUMBER}"
+          git push --set-upstream origin "$BRANCH"
+
+      - name: Open the reviewable promotion pull request
+        if: steps.promoted.outputs.exists == 'false' && steps.existing_pr.outputs.number == ''
+        run: |
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+            --title "rfd: promote RFD ${RFD_NUMBER}" \
+            --body $'Automated promotion after the `committed` state was selected.\n\nThis PR snapshots the accepted issue body into the canonical RFD file. Merging it completes the transition and publishes the reviewed record.\n\n-codex'

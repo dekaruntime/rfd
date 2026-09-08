@@ -25,7 +25,12 @@ is an error and fails the site build.
 
 ## Promotion
 
-Once an RFD is accepted it is promoted to a file in this repository:
+Once an RFD is accepted, apply the `committed` label. The promotion workflow
+snapshots the issue into a numbered file and opens a pull request. Merging that
+pull request is the acceptance record; it is deliberately still reviewed rather
+than written directly to `main`.
+
+The manual command remains available for recovery or local drafting:
 
 ```sh
 bun install

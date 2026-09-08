@@ -3,6 +3,7 @@
  * Promote an accepted RFD from an issue to a file.
  *
  *   bun run promote 39
+ *   bun run promote 39 --state committed
  *
  * Pulls issue #39 from GitHub and writes 0039-slug/README.md with the
  * frontmatter filled in from the issue itself — number, title, author, date.
@@ -18,13 +19,29 @@ import { join } from 'node:path'
 
 const REPO = 'dekaruntime/rfd'
 const STATES = ['prediscussion', 'ideation', 'discussion', 'published', 'committed', 'abandoned']
+type State = (typeof STATES)[number]
 
-const arg = process.argv[2]?.replace(/^#/, '')
+function isState(value: string | undefined): value is State {
+  return value !== undefined && STATES.includes(value as State)
+}
+
+const args = process.argv.slice(2)
+const arg = args[0]?.replace(/^#/, '')
 if (!arg || !/^\d+$/.test(arg)) {
-  console.error('usage: bun run promote <issue-number>')
+  console.error('usage: bun run promote <issue-number> [--state <state>]')
   process.exit(2)
 }
 const number = Number(arg)
+
+const stateFlag = args.indexOf('--state')
+const requestedState = stateFlag === -1 ? undefined : args[stateFlag + 1]
+if (
+  (stateFlag !== -1 && (stateFlag !== 1 || !isState(requestedState))) ||
+  args.length !== (stateFlag === -1 ? 1 : 3)
+) {
+  console.error(`state must be one of: ${STATES.join(', ')}`)
+  process.exit(2)
+}
 
 const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
 const headers: Record<string, string> = {
@@ -56,7 +73,15 @@ if (issue.pull_request) {
 }
 
 const labels = issue.labels.map((l) => (typeof l === 'string' ? l : l.name))
-const state = labels.find((l) => STATES.includes(l)) ?? 'published'
+const issueStates = labels.filter((l) => STATES.includes(l))
+if (!requestedState && issueStates.length > 1) {
+  console.error(
+    `RFD ${issue.number} has multiple state labels: ${issueStates.join(', ')}. ` +
+      'Remove the ambiguity or pass --state <state>.',
+  )
+  process.exit(1)
+}
+const state = requestedState ?? issueStates[0] ?? 'published'
 const tags = labels.filter((l) => !STATES.includes(l))
 
 const slug = issue.title
