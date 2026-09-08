@@ -118,4 +118,3 @@ Combinators (`map`, `and_then`, `unwrap_or`) are library functions, not keywords
 
 1. **Does `Result` stay in the prelude permanently, or move to `@deka/core` once modules land?** Settled by deciding whether prelude membership is about ubiquity or about layering. `@deka/core` does not exist yet, so nothing is blocked.
 2. **`Option` sugar.** Swift's `x?.y` and `x ?? default` are the two ergonomics people miss most. Neither is needed for v1 and both are additive; the question is whether they are ever wanted, given RFD 13 P9's one-obvious-way.
-

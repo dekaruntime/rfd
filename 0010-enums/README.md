@@ -118,4 +118,3 @@ Text: (value) => Object.freeze({ __enum: "Msg", __case: "Text", value })
 2. **Backing values** (`Red = "red"`) for serialisation. Later; encoding is a separate concern and the encode/decode rule above already covers the durable case.
 3. **Freeze payload variants always, or only unit variants?** Today both are frozen. Settled by whether a measured allocation cost appears in a real workload.
 4. **Recursive enums.** Not yet needed, and Swift's `indirect` is the prior art when it is.
-

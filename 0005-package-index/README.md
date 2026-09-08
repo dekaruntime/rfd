@@ -103,4 +103,3 @@ Resolution requires a host that speaks **git over HTTPS**. This is not tailored 
 2. **Catalog format, storage and signing key.** Where the catalog lives, how it is versioned, and which key signs it. Settled alongside whatever key custody scheme the CLI's other signed artifacts use — this should not invent a second one.
 3. **Alias retirement.** What happens when a blessed package is abandoned. Rule 4 makes existing lockfiles safe; the question is what a *new* resolution of a retired alias does. Recommend: hard error naming the last canonical locator, never a silent re-point.
 4. **Relationship to the deka.gg package pages.** Whether the catalog is generated from the site's data or the site renders the catalog. One should be the source.
-

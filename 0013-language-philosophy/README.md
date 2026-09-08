@@ -111,5 +111,3 @@ These principles are rendered as a Handbook, which informs the Tour. **Each prin
 3. **Which principles have gates today, and what is the plan for the remaining eight?** The enforcement section commits to gates; only two are named. This is the difference between this document and PEP 20.
 
 *Resolved and folded into the body: nominal typing at the decoder boundary (now a corollary), the general-`unsafe` question (now in Alternatives with its reasoning), and the Handbook decision (now the Enforcement section).*
-
-

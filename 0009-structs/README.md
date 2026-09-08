@@ -119,4 +119,3 @@ Instances carry a non-enumerable `__deka_struct` tag so `match` and `deka.isStru
 
 1. **Are mixed field separators worth rejecting?** Newline, comma and semicolon all parse today. Settled by deciding whether the formatter normalising them is sufficient, or whether the parser should refuse. Lower stakes than it looks — the formatter can enforce one style without a language rule.
 2. **Struct update syntax.** `Point { ...p, x: 1 }` does **not** compile today. The question is whether to add it, and in which form. Rust's `..base` and OCaml/Elm's `{ r with x = 1 }` are both first-class forms that avoid spread's duplicate-key ambiguity; JavaScript spread is the familiar form that carries it. Settled by whether immutable update becomes a common shape in practice — RFD 22 makes it more likely than it would otherwise be.
-

@@ -198,4 +198,3 @@ Unions                ── needs narrowing, not reflection
 Adopt `super` as described. Ship the coercion cleanup independently and first, since it is unblocked. Treat unions as a separate RFD that this one enables.
 
 -claude
-

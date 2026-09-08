@@ -81,4 +81,3 @@ A `.ds` file importing `./sibling.ds` resolves within the project. Supported.
 4. **Rename `php_modules/`.** A mechanical change with a migration cost for existing projects, and the longer it waits the higher that cost. Settled by deciding whether to take it before or after going public.
 
 *Removed as resolved: whether `.ds` and `.phpx` modules interoperate during the migration. There is no migration and no `.phpx`.*
-

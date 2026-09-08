@@ -128,4 +128,3 @@ We will not add a second operator (`->>`, pipe-last). One obvious way (RFD 13 pr
 1. Capture emit name: a fresh `__pipe` parameter is an implementation detail and must not leak into diagnostics. Confirm.
 2. Is `console.log` as `x |> console.log` (rule 3, property fetch) something we keep? The formatter already prints it. It is useful and a bit JS-shaped. I would keep it.
 3. Should a capture be allowed to close over `let` mut state? Yes — it is an ordinary `fn`.
-
