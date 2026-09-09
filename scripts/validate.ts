@@ -1,34 +1,12 @@
 #!/usr/bin/env bun
 /**
- * Validation gate for PROMOTED RFDs.
+ * Validate the canonical RFD records: open GitHub issues in dekaruntime/rfd.
  *
- * Every issue in this repository is an RFD, and the issue number is the RFD
- * number — so nothing here assigns numbers or resolves collisions. GitHub does
- * that atomically. This checks only the files an accepted RFD is promoted to:
- * that they parse, agree with their directory, and are attributable.
- *
- * A repository with no promoted files is valid. It means every RFD is still
- * under discussion, which is a normal state for this repo to be in.
- *
- * Exit codes: 0 = valid, 1 = at least one problem.
+ * The issue body and exactly one lifecycle label are the only source of an
+ * RFD's text and state. There are intentionally no checked-in RFD copies to
+ * reconcile with the issue API.
  */
-import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
-import matter from 'gray-matter'
-import { z } from 'zod'
-
-const ROOT = process.cwd()
-
-/** YAML parses an unquoted `2026-08-14` into a Date, so accept both and
- *  normalise to YYYY-MM-DD. Requiring authors to quote dates is a footgun
- *  that would fail a PR for a reason nobody would guess. */
-const isoDate = z
-  .union([z.string(), z.date()])
-  .transform((v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v))
-  .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v), 'must be a YYYY-MM-DD date')
-const DIR_PATTERN = /^(\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*$/
-
-/** Every state the system knows about. */
+const REPO = 'dekaruntime/rfd'
 export const STATES = [
   'prediscussion',
   'ideation',
@@ -38,134 +16,71 @@ export const STATES = [
   'abandoned',
 ] as const
 
-/**
- * States a PROMOTED FILE may declare.
- *
- * The earlier states belong to issues. Committing to something is not a label
- * you apply — it is opening a pull request that promotes the RFD, which is
- * what gives the decision an author, a diff, a reviewer and a timestamp.
- * `abandoned` appears in both lists because an RFD can be dropped before or
- * after it was accepted.
- */
-export const FILE_STATES = ['published', 'committed', 'abandoned'] as const
+type Issue = {
+  number: number
+  title: string
+  body: string | null
+  labels: Array<{ name: string } | string>
+  pull_request?: unknown
+}
 
-/** The only shape an RFD's frontmatter may take. Unknown keys are rejected so
- *  a typo ("state" vs "status") fails loudly instead of silently defaulting. */
-export const FrontmatterSchema = z
-  .object({
-    rfd: z.number().int().positive(),
-    title: z.string().min(3).max(120),
-    state: z.enum(STATES),
-    authors: z.array(z.string().regex(/^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}$/))
-      .min(1),
-    created: isoDate,
-    updated: isoDate.optional(),
-    discussion: z.number().int().positive().optional(),
-    tags: z.array(z.string().regex(/^[a-z0-9-]+$/)).default([]),
-  })
-  .strict()
+const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
+const headers: Record<string, string> = {
+  accept: 'application/vnd.github+json',
+  'user-agent': 'dekaruntime-rfd-validate',
+}
+if (token) headers.authorization = `Bearer ${token}`
 
-export type Frontmatter = z.infer<typeof FrontmatterSchema>
+async function openIssues(): Promise<Issue[]> {
+  const issues: Issue[] = []
+  for (let page = 1; ; page++) {
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO}/issues?state=open&per_page=100&page=${page}`,
+      { headers },
+    )
+    if (!response.ok) {
+      throw new Error(`GitHub API returned ${response.status} ${response.statusText}`)
+    }
 
-const PRINT_AUTHORS = process.argv.includes('--print-authors')
+    const batch = (await response.json()) as Issue[]
+    issues.push(...batch)
+    if (batch.length < 100) return issues
+  }
+}
 
 const problems: string[] = []
-const authors = new Set<string>()
-const fail = (dir: string, msg: string) => problems.push(`${dir}: ${msg}`)
+let rfds: Issue[] = []
 
-function rfdDirs(): string[] {
-  return readdirSync(ROOT)
-    .filter((name) => statSync(join(ROOT, name)).isDirectory())
-    .filter((name) => /^\d{4}-/.test(name))
-    .sort()
+try {
+  rfds = (await openIssues()).filter((issue) => !issue.pull_request)
+} catch (error) {
+  console.error(`\n✗ could not read canonical RFD issues: ${(error as Error).message}\n`)
+  process.exit(1)
 }
 
-const seen = new Map<number, string>()
-
-for (const dir of rfdDirs()) {
-  if (!DIR_PATTERN.test(dir)) {
-    fail(dir, 'directory must be NNNN-kebab-case-slug, e.g. 0007-package-signing')
-    continue
+for (const rfd of rfds) {
+  if (rfd.title.trim().length < 3) {
+    problems.push(`RFD #${rfd.number}: title must contain at least 3 characters`)
+  }
+  if (!rfd.body?.trim()) {
+    problems.push(`RFD #${rfd.number}: issue body is empty`)
   }
 
-  const readme = join(ROOT, dir, 'README.md')
-  if (!existsSync(readme)) {
-    fail(dir, 'missing README.md — the RFD body lives there')
-    continue
-  }
-
-  let data: unknown
-  let body: string
-  try {
-    const parsed = matter(readFileSync(readme, 'utf8'))
-    data = parsed.data
-    body = parsed.content
-  } catch (error) {
-    fail(dir, `frontmatter will not parse: ${(error as Error).message}`)
-    continue
-  }
-
-  const result = FrontmatterSchema.safeParse(data)
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      fail(dir, `frontmatter.${issue.path.join('.') || '(root)'} — ${issue.message}`)
-    }
-    continue
-  }
-  const fm = result.data
-
-  if (!(FILE_STATES as readonly string[]).includes(fm.state)) {
-    fail(
-      dir,
-      `state "${fm.state}" belongs to the issue, not the file — a promoted RFD ` +
-        `may be ${FILE_STATES.join(', ')}. Change the label on issue #${fm.rfd} instead.`,
+  const labels = rfd.labels.map((label) => (typeof label === 'string' ? label : label.name))
+  const states = labels.filter((label) => (STATES as readonly string[]).includes(label))
+  if (states.length !== 1) {
+    problems.push(
+      `RFD #${rfd.number}: expected exactly one lifecycle label ` +
+        `(${STATES.join(', ')}), found ${states.length === 0 ? 'none' : states.join(', ')}`,
     )
   }
-
-  // The number is the issue number this RFD was promoted from. It must agree
-  // with the directory, because the directory is what a human reads and the
-  // number is what every URL and every link back to the discussion uses.
-  const dirNumber = Number(dir.slice(0, 4))
-  if (fm.rfd !== dirNumber) {
-    fail(dir, `frontmatter rfd:${fm.rfd} does not match directory number ${dirNumber}`)
-  }
-
-  // Uniqueness is the one property that cannot be repaired after the fact:
-  // two RFDs sharing a number means one of them has no stable URL.
-  const clash = seen.get(fm.rfd)
-  if (clash) fail(dir, `RFD number ${fm.rfd} is already used by ${clash}`)
-  else seen.set(fm.rfd, dir)
-
-  for (const author of fm.authors) authors.add(author)
-
-  if (body.trim().length < 200) {
-    fail(dir, 'body is under 200 characters — an RFD needs to state a problem')
-  }
-
-  if (fm.updated && fm.updated < fm.created) {
-    fail(dir, `updated (${fm.updated}) is before created (${fm.created})`)
-  }
-}
-
-if (PRINT_AUTHORS) {
-  // Only the handles, one per line, so CI can loop over them.
-  if (problems.length > 0) {
-    console.error('cannot list authors: RFDs are invalid — run validate first')
-    process.exit(1)
-  }
-  console.log([...authors].sort().join('\n'))
-  process.exit(0)
 }
 
 if (problems.length > 0) {
-  console.error(`\n✗ ${problems.length} problem(s):\n`)
-  for (const p of problems) console.error(`  ${p}`)
+  console.error(`\n✗ ${problems.length} RFD issue problem(s):\n`)
+  for (const problem of problems) console.error(`  ${problem}`)
   console.error('')
   process.exit(1)
 }
 
-if (seen.size === 0) {
-  console.log('✓ no promoted RFDs yet — every RFD is still an issue')
-} else {
-  console.log(`✓ ${seen.size} promoted RFD(s) valid: ${[...seen.keys()].sort((a, b) => a - b).join(', ')}`)
-}
+console.log(`✓ ${rfds.length} open RFD issue(s) valid`)

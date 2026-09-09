@@ -1,55 +1,29 @@
 # Requests For Discussion
 
-Significant changes to deka are proposed, argued over and recorded here.
+Significant Deka changes are proposed, discussed, and recorded as GitHub
+issues in this repository. The issue body and its one lifecycle label are the
+authoritative RFD record and are published at
+[deka.gg/rfd](https://deka.gg/rfd).
 
-Published at **[deka.gg/rfd](https://deka.gg/rfd)**, which shows every RFD —
-those still under discussion as well as those that have been accepted.
+## Process
 
-## Proposing one
+Open an issue with the RFD template. Its number is the permanent RFD number:
+issue #39 is RFD 39 and lives at `deka.gg/rfd/39`. Write and revise the design
+in the issue body; discussion stays in the issue thread.
 
-**Open an issue.** That is the whole process. Every issue in this repository is
-an RFD; there is no label to add and no triage step.
-
-The issue number is the RFD number, permanently. Issue #39 is RFD 39 and lives
-at `deka.gg/rfd/39`.
-
-## Lifecycle
-
-State is a label on the issue:
+Every open RFD must carry exactly one state label:
 
     prediscussion → ideation → discussion → published → committed
                                           ↘ abandoned
 
-An issue with no state label is treated as `prediscussion`. An issue with two
-is an error and fails the site build.
+`committed` records an accepted decision directly on the issue. It does not
+create a second Markdown record or a promotion pull request. Implementation
+pull requests link back to the RFD; they do not become the RFD's source.
 
-## Promotion
+State can move in either direction as the design changes. Closing an issue
+removes it from the published RFD index; use `abandoned` when a rejected or
+superseded decision should remain visible.
 
-Once an RFD is accepted, apply the `committed` label. The promotion workflow
-snapshots the issue into a numbered file and opens a pull request. Merging that
-pull request is the acceptance record; it is deliberately still reviewed rather
-than written directly to `main`.
-
-The manual command remains available for recovery or local drafting:
-
-```sh
-bun install
-bun run promote 39      # writes 0039-slug/README.md from issue #39
-bun run validate        # the same gate CI runs
-```
-
-Then open a pull request. From that point the file carries the state, changes
-go through pull requests that reference the issue, and **the issue stays open**
-as the discussion.
-
-**If a file exists, the file wins.** The site takes a promoted RFD's state and
-body from the file; the issue remains the conversation.
-
-## Why both
-
-While an RFD is being argued about, a threaded discussion is a better artifact
-than a diff, and proposing one should cost a text box. Once it is a decision
-the project depends on, "what changed and who objected" matters more than
-convenience — which is what a pull request gives you.
-
-Friction matches commitment. See RFD 1.
+The validator fails when an open RFD has zero or multiple lifecycle labels, so
+the website never guesses at its state. See [RFD 1](https://github.com/dekaruntime/rfd/issues/1)
+for the complete process.

@@ -1,9 +1,8 @@
 name: Publish to deka.gg
 
-# The website builds RFDs from this repository — bodies from `main`, and the
-# discussion from the issue threads. Without this, changes here are invisible
-# until the site's own schedule comes round, which is how a process quietly
-# stops being used.
+# The website builds RFDs directly from issue bodies, labels, and threads.
+# Without this, a canonical issue edit is invisible until the site's own
+# schedule comes round, which is how a process quietly stops being used.
 #
 # Comment activity matters as much as pushes: most RFDs never become a file,
 # so for them the argument IS the content, and a push-only trigger never fires.
@@ -27,14 +26,6 @@ concurrency:
 
 jobs:
   notify:
-    # Applying `committed` starts the promotion workflow, which opens a PR.
-    # Publishing before that PR merges would expose a state that has no
-    # canonical file yet. The push that merges the promotion is the publish
-    # event instead.
-    if: >-
-      github.event_name != 'issues' ||
-      github.event.action != 'labeled' ||
-      github.event.label.name != 'committed'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       # deka.gg rebuilds on its own schedule (deploy.yml, cron 17 */2), so this

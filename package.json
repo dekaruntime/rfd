@@ -3,12 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "bun scripts/validate.ts",
-    "promote": "bun scripts/promote.ts",
-    "sync-labels": "bun scripts/sync-labels.ts"
-  },
-  "dependencies": {
-    "gray-matter": "^4.0.3",
-    "zod": "^4.1.12"
+    "validate": "bun scripts/validate.ts"
   }
 }
